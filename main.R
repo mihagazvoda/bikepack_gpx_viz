@@ -1,24 +1,27 @@
-library(ggmap)
-library(dplyr)
+source("R/packages.R")
+source("R/functions.R")
 
-gpx_file <- plotKML::readGPX("activities/Bled_Predel_Bovec.gpx")
+df <- list.files(path = "activities", pattern = "*.gpx", full.names = TRUE) %>%
+  purrr::map_dfr(get_gpx_df) %>% 
+  arrange(time) %>% 
+  mutate(dist_cum = cumsum(dist_to_prev))
 
-df <- tibble::tibble(gpx_file$tracks[[1]][[1]])
+# slovenia <- ggmap::get_googlemap(center = c(mean(df$lon), mean(df$lat)), style = ggmapstyles::map_style(ID = "84"), zoom = 9)
 
-df %>%
-  select(-extensions) %>% 
-  mutate(
-    ele = as.numeric(ele),
-    time = lubridate::as_datetime(time)
-    ) %>% View()
+p_map <- slovenia %>%
+  ggmap() +
+  geom_point(data = df, aes(lon, lat), size = 0.1) +
+  theme_void()
 
-ggplot(df, aes(lon, lat)) + 
-  coord_quickmap() + 
-  geom_point()
+p_ele <- ggplot(df) +
+  geom_line(aes(x = dist_cum, y = ele)) + 
+  theme_void()
 
-western_slovenia <- get_googlemap(center = c(mean(df$lon), mean(df$lat)), language = "en-EN")
+cowplot::plot_grid(p_map, p_ele, ncol = 1)
 
-western_slovenia %>% 
-  ggmap() + 
-  geom_point(data = df, aes(lon, lat), size = 0.1) + 
-  theme_void() 
+# -----
+leaflet() %>% 
+  # Jawk.Terrain
+  addProviderTiles(providers$Stamen.Terrain) %>% 
+  leaflet::addPolylines(lng = df$lon, lat = df$lat, color = "black", opacity = 0.8)
+
